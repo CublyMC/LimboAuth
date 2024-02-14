@@ -483,6 +483,24 @@ public class Settings extends YamlConfig {
     public String CONNECTION_PARAMETERS = "?autoReconnect=true&initialTimeout=1&useSSL=false";
   }
 
+  @NewLine
+  public List<TEXT_DISPLAY> TEXT_DISPLAYS = List.of(
+      Settings.createNodeSequence(TEXT_DISPLAY.class, 0.0, 0.0, 0.0, 3, 0x40000000, "Test Display")
+  );
+
+  public static class TEXT_DISPLAY {
+
+    public double X = 0;
+    public double Y = 0;
+    public double Z = 0;
+
+    public int BILLBOARD_CONSTRAINTS = 0;
+
+    public int BACKGROUND_COLOR = 0x40000000;
+    public String TEXT = "test display";
+
+  }
+
   public static class MD5KeySerializer extends ConfigSerializer<byte[], String> {
 
     private final MessageDigest md5;

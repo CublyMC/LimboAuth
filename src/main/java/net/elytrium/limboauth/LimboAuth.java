@@ -66,6 +66,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.sql.SQLException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -90,6 +91,9 @@ import net.elytrium.limboapi.api.LimboFactory;
 import net.elytrium.limboapi.api.chunk.VirtualWorld;
 import net.elytrium.limboapi.api.command.LimboCommandMeta;
 import net.elytrium.limboapi.api.file.WorldFile;
+import net.elytrium.limboapi.api.protocol.PacketDirection;
+import net.elytrium.limboapi.api.protocol.packets.PacketMapping;
+import net.elytrium.limboauth.Settings.TEXT_DISPLAY;
 import net.elytrium.limboauth.command.ChangePasswordCommand;
 import net.elytrium.limboauth.command.DestroySessionCommand;
 import net.elytrium.limboauth.command.ForceChangePasswordCommand;
@@ -100,6 +104,7 @@ import net.elytrium.limboauth.command.PremiumCommand;
 import net.elytrium.limboauth.command.TotpCommand;
 import net.elytrium.limboauth.command.UnregisterCommand;
 import net.elytrium.limboauth.dependencies.DatabaseLibrary;
+import net.elytrium.limboauth.entities.TextDisplayEntity;
 import net.elytrium.limboauth.event.AuthPluginReloadEvent;
 import net.elytrium.limboauth.event.PreAuthorizationEvent;
 import net.elytrium.limboauth.event.PreEvent;
@@ -110,6 +115,8 @@ import net.elytrium.limboauth.handler.AuthSessionHandler;
 import net.elytrium.limboauth.listener.AuthListener;
 import net.elytrium.limboauth.model.RegisteredPlayer;
 import net.elytrium.limboauth.model.SQLRuntimeException;
+import net.elytrium.limboauth.protocol.packets.SetEntityMetadata;
+import net.elytrium.limboauth.protocol.packets.SpawnEntity;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.serializer.ComponentSerializer;
 import net.kyori.adventure.title.Title;
@@ -183,6 +190,8 @@ public class LimboAuth {
   private Dao<RegisteredPlayer, String> playerDao;
   private Pattern nicknameValidationPattern;
   private Limbo authServer;
+
+  private final List<TextDisplayEntity> textDisplays = new ArrayList<>();
 
   @Inject
   public LimboAuth(Logger logger, ProxyServer server, Metrics.Factory metricsFactory, @DataDirectory Path dataDirectory) {
@@ -387,7 +396,27 @@ public class LimboAuth {
         .setWorldTime(Settings.IMP.MAIN.WORLD_TICKS)
         .setGameMode(Settings.IMP.MAIN.GAME_MODE)
         .registerCommand(new LimboCommandMeta(this.filterCommands(Settings.IMP.MAIN.REGISTER_COMMAND)))
-        .registerCommand(new LimboCommandMeta(this.filterCommands(Settings.IMP.MAIN.LOGIN_COMMAND)));
+        .registerCommand(new LimboCommandMeta(this.filterCommands(Settings.IMP.MAIN.LOGIN_COMMAND)))
+        .registerPacket(PacketDirection.CLIENTBOUND, SpawnEntity.class, SpawnEntity::new, new PacketMapping[]{
+            new PacketMapping(0x0E, ProtocolVersion.MINECRAFT_1_8, true),
+            new PacketMapping(0x00, ProtocolVersion.MINECRAFT_1_9, true),
+            new PacketMapping(0x01, ProtocolVersion.MINECRAFT_1_19_4, true),
+        })
+        .registerPacket(PacketDirection.CLIENTBOUND, SetEntityMetadata.class, SetEntityMetadata::new, new PacketMapping[]{
+            new PacketMapping(0x1C, ProtocolVersion.MINECRAFT_1_8, true),
+            new PacketMapping(0x39, ProtocolVersion.MINECRAFT_1_9, true),
+            new PacketMapping(0x3B, ProtocolVersion.MINECRAFT_1_12, true),
+            new PacketMapping(0x3C, ProtocolVersion.MINECRAFT_1_12_1, true),
+            new PacketMapping(0x3F, ProtocolVersion.MINECRAFT_1_13, true),
+            new PacketMapping(0x43, ProtocolVersion.MINECRAFT_1_14, true),
+            new PacketMapping(0x44, ProtocolVersion.MINECRAFT_1_15, true),
+            new PacketMapping(0x4D, ProtocolVersion.MINECRAFT_1_17, true),
+            new PacketMapping(0x50, ProtocolVersion.MINECRAFT_1_19_1, true),
+            new PacketMapping(0x4E, ProtocolVersion.MINECRAFT_1_19_3, true),
+            new PacketMapping(0x52, ProtocolVersion.MINECRAFT_1_19_4, true),
+            new PacketMapping(0x54, ProtocolVersion.MINECRAFT_1_20_2, true),
+            new PacketMapping(0x56, ProtocolVersion.MINECRAFT_1_20_3, true),
+        });
 
     if (Settings.IMP.MAIN.ENABLE_TOTP) {
       this.authServer.registerCommand(new LimboCommandMeta(this.filterCommands(Settings.IMP.MAIN.TOTP_COMMAND)));
@@ -428,6 +457,13 @@ public class LimboAuth {
         .schedule();
 
     eventManager.fireAndForget(new AuthPluginReloadEvent());
+
+    this.textDisplays.clear();
+    int entityId = 10;
+    for (TEXT_DISPLAY textDisplay : Settings.IMP.TEXT_DISPLAYS) {
+      this.textDisplays.add(new TextDisplayEntity(entityId++, textDisplay.X, textDisplay.Y, textDisplay.Z,
+          (byte) textDisplay.BILLBOARD_CONSTRAINTS, textDisplay.BACKGROUND_COLOR, Settings.IMP.SERIALIZER.getSerializer().deserialize(textDisplay.TEXT)));
+    }
   }
 
   private List<String> filterCommands(List<String> commands) {
@@ -933,6 +969,10 @@ public class LimboAuth {
     return this.nicknameValidationPattern;
   }
 
+  public List<TextDisplayEntity> getTextDisplays() {
+    return this.textDisplays;
+  }
+
   private static class CachedUser {
 
     private final long checkTime;
@@ -995,7 +1035,7 @@ public class LimboAuth {
     }
 
     public int getAttempts() {
-      return  this.attempts;
+      return this.attempts;
     }
   }
 

@@ -43,6 +43,7 @@ import net.elytrium.limboapi.api.LimboSessionHandler;
 import net.elytrium.limboapi.api.player.LimboPlayer;
 import net.elytrium.limboauth.LimboAuth;
 import net.elytrium.limboauth.Settings;
+import net.elytrium.limboauth.entities.TextDisplayEntity;
 import net.elytrium.limboauth.event.PostAuthorizationEvent;
 import net.elytrium.limboauth.event.PostRegisterEvent;
 import net.elytrium.limboauth.event.TaskEvent;
@@ -191,6 +192,10 @@ public class AuthSessionHandler implements LimboSessionHandler {
 
     if (!this.loginOnlyByMod) {
       this.sendMessage(true);
+    }
+
+    for (TextDisplayEntity textDisplay : this.plugin.getTextDisplays()) {
+      textDisplay.spawn(player);
     }
   }
 
